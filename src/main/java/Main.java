@@ -2,35 +2,52 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
 public class Main {
 
     public static final Map<Integer, Integer> sizeToFreq = new HashMap<>();
 
-    public static void main(String[] args) throws ExecutionException, InterruptedException {
+    public static void main(String[] args) throws InterruptedException {
 
         int threadsCount = 1_000;
         char findChar = 'R';
-        final ExecutorService threadPool = Executors.newFixedThreadPool(threadsCount);
+
+        Thread leader = new Thread(() -> {
+            while (!Thread.interrupted()) {
+                synchronized (sizeToFreq) {
+                    if (!sizeToFreq.isEmpty()) {
+                        int max = sizeToFreq.keySet().stream()
+                                .max(Integer::compare)
+                                .get();
+                        System.out.printf("Сейчас лидирует количество повторений %d%n", max);
+                        try {
+                            sizeToFreq.wait();
+                        } catch (InterruptedException e) {
+                            return;
+                        }
+                    }
+                }
+            }
+        });
+        leader.start();
 
         for (int i = 0; i < threadsCount; i++) {
-            Future<Integer> task = threadPool.submit(() -> {
+            Thread task = new Thread(() -> {
                 String route = generateRoute("RLRFR", 100);
-                return (int) route.chars()
+                int key = (int) route.chars()
                         .filter(ch -> ch == findChar)
                         .count();
+                synchronized (sizeToFreq) {
+                    if (sizeToFreq.containsKey(key)) {
+                        sizeToFreq.put(key, (sizeToFreq.get(key) + 1));
+                    } else sizeToFreq.put(key, 1);
+                    sizeToFreq.notify();
+                }
             });
-            int key = task.get();
-            synchronized (sizeToFreq) {
-                if (sizeToFreq.containsKey(key)) {
-                    sizeToFreq.put(key, (sizeToFreq.get(key) + 1));
-                } else sizeToFreq.put(key, 1);
-            }
+            task.start();
+            task.join();
         }
-        threadPool.shutdown();
+        leader.interrupt();
         int max = sizeToFreq.keySet().stream()
                 .max(Integer::compare)
                 .get();
