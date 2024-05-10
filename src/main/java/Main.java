@@ -1,7 +1,4 @@
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.ExecutionException;
+import java.util.*;
 
 public class Main {
 
@@ -11,6 +8,7 @@ public class Main {
 
         int threadsCount = 1_000;
         char findChar = 'R';
+        List<Thread> counters = new LinkedList<>();
 
         Thread leader = new Thread(() -> {
             while (!Thread.interrupted()) {
@@ -32,7 +30,7 @@ public class Main {
         leader.start();
 
         for (int i = 0; i < threadsCount; i++) {
-            Thread task = new Thread(() -> {
+            Thread counter = new Thread(() -> {
                 String route = generateRoute("RLRFR", 100);
                 int key = (int) route.chars()
                         .filter(ch -> ch == findChar)
@@ -44,10 +42,15 @@ public class Main {
                     sizeToFreq.notify();
                 }
             });
-            task.start();
-            task.join();
+            counters.add(counter);
+            counter.start();
+        }
+
+        for (Thread thread : counters) {
+            thread.join();
         }
         leader.interrupt();
+
         int max = sizeToFreq.keySet().stream()
                 .max(Integer::compare)
                 .get();
