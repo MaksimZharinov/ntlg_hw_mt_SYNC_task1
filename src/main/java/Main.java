@@ -1,43 +1,44 @@
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Random;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.*;
 
 public class Main {
 
     public static final Map<Integer, Integer> sizeToFreq = new HashMap<>();
 
-    public static void main(String[] args) throws ExecutionException, InterruptedException {
+    public static void main(String[] args) throws InterruptedException {
 
         int threadsCount = 1_000;
         char findChar = 'R';
-        final ExecutorService threadPool = Executors.newFixedThreadPool(threadsCount);
+        List<Thread> counters = new LinkedList<>();
 
         for (int i = 0; i < threadsCount; i++) {
-            Future<Integer> task = threadPool.submit(() -> {
+            Thread counter = new Thread(() -> {
                 String route = generateRoute("RLRFR", 100);
-                return (int) route.chars()
+                int countChar = (int) route.chars()
                         .filter(ch -> ch == findChar)
                         .count();
+                synchronized (sizeToFreq) {
+                    if (sizeToFreq.containsKey(countChar)) {
+                        sizeToFreq.put(countChar, (sizeToFreq.get(countChar) + 1));
+                    } else sizeToFreq.put(countChar, 1);
+                }
             });
-            int key = task.get();
-            synchronized (sizeToFreq) {
-                if (sizeToFreq.containsKey(key)) {
-                    sizeToFreq.put(key, (sizeToFreq.get(key) + 1));
-                } else sizeToFreq.put(key, 1);
-            }
+            counters.add(counter);
+            counter.start();
         }
-        threadPool.shutdown();
+
+        for (Thread thread : counters) {
+            thread.join();
+        }
+
         int max = sizeToFreq.keySet().stream()
                 .max(Integer::compare)
                 .get();
         System.out.println("Самое частое количество повторений " +
                 max + " (встретилось " + sizeToFreq.get(max) + " раз)");
         System.out.println("Другие размеры:");
-        sizeToFreq.forEach((k, v) -> {
+        sizeToFreq.forEach((k, v) ->
+
+        {
             if (k != max) System.out.println("- " + k +
                     " (" + v + " раз)");
         });
